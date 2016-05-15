@@ -177,20 +177,11 @@ public class Antispam {
 		Antispam as = new Antispam();
 		Classifieur c = new Classifieur(as);
 		as.dictionnaire = as.charger_dictionnaire("dictionnaire1000en.txt");
-		//System.out.println(as.dictionnaire[0]);
 		System.out.println(" Apprentissage . . .");
-		int[] tab = as.lire_message("baseapp/spam/"+0+".txt");
-	/*	int cpt=0;
-		for (int i = 0; i < tab.length; i++) {
-			System.out.println(" Le mot : "+as.dictionnaire[i]+" est visible "+tab[i]);
-			
-			cpt += tab[i];
-		}
-		System.out.println("cpt : "+cpt);*/
+		
+		
 		int[] SommeDesPresencesSpam = c.getSommeVecteurSpam(as, nbSpamApp);
-	//	as.afficheTab(SommeDesPresencesSpam);
-		//System.out.println(" ABLE :"+SommeDesPresencesSpam[0]);
-		int[] SommeDesPresencesHam = c.getSommeVecteurHam(as, nbSpamApp);
+		int[] SommeDesPresencesHam = c.getSommeVecteurHam(as, nbHamApp);
 		int nbExemple = nbSpamTest+nbHamTest;
 		double PspamApriori = (double)((double)nbSpamTest/(double)nbExemple);
 		double PhamApriori = (double)((double)nbHamTest/(double)nbExemple);
@@ -198,24 +189,16 @@ public class Antispam {
 		int sommeindicatricespam = 0;
 		for (int i = 0; i < nbSpamTest; i++) {
 			
-			double probabspam = c.Probabilite(dossierbasetest+"/spam/"+i+".txt",nbSpamApp,SommeDesPresencesSpam);
 			
-			double probabham = c.Probabilite(dossierbasetest+"/ham/"+i+".txt",nbHamApp,SommeDesPresencesHam);
-			double Pxx = (double)((double)((double)probabspam*(double)PspamApriori)+(double)((double)probabham*(double)PhamApriori));
-			Pxx = (double)((double)1/(double)Pxx);
-			System.out.println(" 1/P(X = x)"+Pxx);
-			double probaPosterioriSpam =(double)((double)((double)probabspam*(double)PspamApriori)*(double)Pxx);
-			double probaPosterioriHam =(double)((double)((double)probabham*(double)PhamApriori)*(double)Pxx);
 			String prediction;
-		//	System.out.println(" Proba a la fin : "+probaPosterioriSpam);
-			if(probaPosterioriHam > probaPosterioriSpam){
-				prediction = "HAM *** Erreur ***";
-				sommeindicatricespam++;
+			prediction = c.prediction(i, PspamApriori, PhamApriori, dossierbasetest, nbSpamApp, nbHamApp, SommeDesPresencesSpam, SommeDesPresencesHam);
+			
+			if(prediction.equals("SPAM")){
 				
 			}else{
-				prediction = "SPAM";
+				sommeindicatricespam++;
+				prediction = "HAM *** erreur ***";
 			}
-			
 			System.out.println("le SPAM numero "+i+" a ete identifie comme un "+prediction);
 			
 		}
