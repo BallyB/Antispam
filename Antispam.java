@@ -4,12 +4,14 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Dictionary;
 import java.util.Scanner;
 
 public class Antispam {
 
-	public static final int TAILLE_DICTIONNAIRE = 1000;
+	public static int TAILLE_DICTIONNAIRE;
 	public String[] dictionnaire;
 	
 	
@@ -23,36 +25,51 @@ public class Antispam {
 	
 	
 	
-	public String[] charger_dictionnaire(String dico){
-		String res[] = new String[TAILLE_DICTIONNAIRE];
-		BufferedReader br = null;
-		String ligne;
-		try {
-			br = new BufferedReader(new FileReader(dico));
-			System.out.println("Lecture dictionnaire Ok");
-		} catch (FileNotFoundException e) {
-			System.out.println("ERREUR OUVERTURE FICHIER DICTIONNAIRE");
-			e.printStackTrace();
-		}
+	public String[] charger_dictionnaire(String dico) throws IOException{
 		
-		try {
+		BufferedReader br = null;
+		FileReader fn;
+		FileReader fn2;
+		String res[] = null;
+		int nbLines = 0;
+		
+			
+		fn = new FileReader(dico);
+		fn2 = new FileReader(dico);
+		String ligne2;
+		BufferedReader reader = new BufferedReader(fn2);
+		while ((ligne2 = reader.readLine()) != null)
+			if (ligne2.length() > 2) {
+			nbLines++;
+		}
+		reader.close();
+		fn2.close();
+			
+		TAILLE_DICTIONNAIRE = nbLines;
+		res = new String[TAILLE_DICTIONNAIRE];
+		br = new BufferedReader(fn);
+		System.out.println("Lecture dictionnaire Ok");
+			
+		String ligne;
 			int cmpt = 0;
 			while((ligne = br.readLine()) != null){
-				//System.out.println(ligne);
 				if (ligne.length() > 2) {
 					res[cmpt] = ligne;
-					
-				}else{
-					res[cmpt] = "motassezlongpourcatchsegfault";
+					cmpt++;
 				}
-				cmpt++;
+					
 			}
-			br.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		br.close();
+			
 		System.out.println("Remplissage tableau dictionnaire Ok");
+			
+		
+		
 		return res;
+
+		
+		
+		
 	}
 	
 	public int[] lire_message(String mail){
@@ -81,6 +98,7 @@ public class Antispam {
 					
 					int tmp = isInDictionnary(mots[i]);
 					if (tmp != -1) {
+					//	System.out.println("Mot dans le dico à l'indice "+tmp);
 						X[tmp] = 1;
 					}
 
@@ -162,6 +180,14 @@ public class Antispam {
 		return (int)lettre; 
 	}
 	
+	public static double round(double value, int places) {
+	    if (places < 0) throw new IllegalArgumentException();
+
+	    BigDecimal bd = new BigDecimal(value);
+	    bd = bd.setScale(places, RoundingMode.HALF_UP);
+	    return bd.doubleValue();
+	}
+	
 	public static void main(String[] args){
 		int nbSpamTest = Integer.parseInt(args[1]);
 		int nbHamTest = Integer.parseInt(args[2]);
@@ -176,39 +202,85 @@ public class Antispam {
 		int nbHamApp = Integer.parseInt(str2);
 		Antispam as = new Antispam();
 		Classifieur c = new Classifieur(as);
-		as.dictionnaire = as.charger_dictionnaire("dictionnaire1000en.txt");
-		System.out.println(" Apprentissage . . .");
 		
-		
-		int[] SommeDesPresencesSpam = c.getSommeVecteurSpam(as, nbSpamApp);
-		int[] SommeDesPresencesHam = c.getSommeVecteurHam(as, nbHamApp);
-		int nbExemple = nbSpamTest+nbHamTest;
-		double PspamApriori = (double)((double)nbSpamTest/(double)nbExemple);
-		double PhamApriori = (double)((double)nbHamTest/(double)nbExemple);
-		
-		int sommeindicatricespam = 0;
-		for (int i = 0; i < nbSpamTest; i++) {
-			
-			
-			String prediction;
-			prediction = c.prediction(i, PspamApriori, PhamApriori, dossierbasetest, nbSpamApp, nbHamApp, SommeDesPresencesSpam, SommeDesPresencesHam);
-			
-			if(prediction.equals("SPAM")){
+			try {
+				as.dictionnaire = as.charger_dictionnaire("dictionnaire1000en.txt");
+				System.out.println(" Apprentissage . . .");
+				int Epsilon = 1;
+				double[] bjSpam = c.getBJSpam(as, nbSpamApp, Epsilon);
+			//	System.out.println("TATA");
+				/*for (int i = 0; i < bjSpam.length; i++) {
+					System.out.println(" Spam :"+bjSpam[i]);
+				}*/
+				double[] bjHam = c.getBJHam(as, nbHamApp, Epsilon);
+			/*	for (int i = 0; i < bjHam.length; i++) {
+					System.out.println(" Ham :"+bjHam[i]);
+				}*/
+				int nbExemple = nbSpamTest+nbHamTest;
+				double PspamApriori = (double)((double)nbSpamTest/(double)nbExemple);
+				double PhamApriori = (double)((double)nbHamTest/(double)nbExemple);
+				int sommeindicatricespam = 0;
+				String prediction;
+				String prediction2;
+				System.out.println("Test :");
+				for (int i = 0; i < nbSpamTest; i++) {
+					double probabspam = c.Probabilite(dossierbasetest+"/spam/"+i+".txt",bjSpam);
+					double probabham = c.Probabilite(dossierbasetest+"/spam/"+i+".txt",bjHam);
+					
+					double Pxx = (double)((double)((double)Math.exp(probabspam)*(double)Math.exp(PspamApriori))+(double)((double)Math.exp(probabham)*(double)Math.exp(PhamApriori)));
+					Pxx = (double)((double)1/(double)Pxx);
+					Pxx = (double)Math.log(Pxx);
+					double probaPosterioriSpam =(double)((double)((double)probabspam+Math.log((double)PspamApriori))+(double)Pxx);
+					double probaPosterioriHam =(double)((double)((double)probabham+Math.log((double)PhamApriori))+(double)Pxx);
+					
+					if(probaPosterioriHam> probaPosterioriSpam){
+						sommeindicatricespam++;
+						prediction = "HAM *** erreur ***";
+					}else{
+						prediction = "SPAM";
+					}
+					System.out.println("le SPAM numero "+i+" : P(Y=Spam| X=x) = "+Math.exp(probaPosterioriSpam)+", P(Y=Ham|X=x) = "+Math.exp(probaPosterioriHam)+"");
+					System.out.println("    == > identifie comme un "+prediction);
+					
+				}
+				int sommeindicatriceham = 0;
+				for (int i = 0; i < nbHamTest; i++) {
+					double probabspam = c.Probabilite(dossierbasetest+"/ham/"+i+".txt",bjSpam);
+					double probabham = c.Probabilite(dossierbasetest+"/ham/"+i+".txt",bjHam);
+					
+					double Pxx = (double)((double)((double)Math.exp(probabspam)*(double)Math.exp(PspamApriori))+(double)((double)Math.exp(probabham)*(double)Math.exp(PhamApriori)));
+					Pxx = (double)((double)1/(double)Pxx);
+					Pxx = (double)Math.log(Pxx);
+					double probaPosterioriSpam =(double)((double)((double)probabspam+Math.log((double)PspamApriori))+(double)Pxx);
+					double probaPosterioriHam =(double)((double)((double)probabham+Math.log((double)PhamApriori))+(double)Pxx);
+					if(probaPosterioriSpam> probaPosterioriHam){
+						sommeindicatriceham++;
+						prediction2 = "SPAM *** erreur ***";
+					}else{
+						prediction2 = "HAM";
+					}
+					System.out.println("le HAM numero "+i+" : P(Y=Spam| X=x) = "+Math.exp(probaPosterioriSpam)+", P(Y=Ham|X=x) = "+Math.exp(probaPosterioriHam)+"");
+					System.out.println("    == > identifie comme un "+prediction2);
+				}
 				
-			}else{
-				sommeindicatricespam++;
-				prediction = "HAM *** erreur ***";
+				
+				double Remp = (double)((double)sommeindicatricespam*100/(double)nbSpamTest);
+				double Remp2 = (double)((double)sommeindicatriceham*100/(double)nbHamTest);
+				System.out.println("Taux d'erreur sur les "+nbSpamTest+" SPAM :"+round(Remp,1)+"%");
+				System.out.println("Taux d'erreur sur les "+nbHamTest+" HAM :"+round(Remp2,1)+"%");
+				double Remptotal = (double)((double)((double)sommeindicatriceham+(double)sommeindicatricespam)*100/(double)nbExemple);
+				System.out.println("Taux d'erreur global sur "+nbExemple+" mails :"+round(Remptotal,1)+"%");
+				
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
-			System.out.println("le SPAM numero "+i+" a ete identifie comme un "+prediction);
+		
+		
+		
+		
 			
-		}
-		double Remp = (double)((double)sommeindicatricespam/(double)nbSpamTest);
-		System.out.println(" Risque empirique SPAM :"+Remp);
-		System.out.println(" Taux de bonne reconnaissance sur les SPAM :"+((1-Remp)*100)+"%");
-		
-		
-		
-		//	as.afficheTab(X);
+	
 	}
 
 
